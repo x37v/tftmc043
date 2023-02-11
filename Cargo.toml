@@ -1,0 +1,28 @@
+[package]
+name = "rp2040"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cortex-m-rtic = "1.1.3"
+embedded-hal = "0.2.7"
+embedded-midi = "0.1.2"
+fixed = "1.21.0"
+fugit = "0.3.6"
+heapless = "0.7.16"
+panic-halt = "0.2.0"
+rp-pico = "0.5.0"
+
+[profile.dev]
+codegen-units = 1 # better optimizations
+debug = true # symbols are nice and they don't increase the size in flash
+incremental = false
+opt-level = "s" # optimize for binary size
+
+[profile.release]
+codegen-units = 1 # better optimizations
+debug = true # symbols are nice and they don't increase the size in flash
+lto = true # better optimizations
+opt-level = "s" # optimize for binary size
