@@ -6,10 +6,12 @@ use panic_halt as _;
 #[rtic::app(device = rp_pico::hal::pac, peripherals = true)]
 mod app {
 
-    use embedded_hal::digital::v2::OutputPin;
-    use fugit::MicrosDurationU32;
+    use embedded_hal::{digital::v2::OutputPin, prelude::*};
+    use fugit::{MicrosDurationU32, RateExtU32};
     use rp_pico::{
-        hal::{self, clocks::init_clocks_and_plls, timer::Alarm, watchdog::Watchdog, Sio},
+        hal::{
+            self, clocks::init_clocks_and_plls, prelude::*, timer::Alarm, watchdog::Watchdog, Sio,
+        },
         XOSC_CRYSTAL_FREQ,
     };
 
@@ -34,7 +36,7 @@ mod app {
         }
         let mut resets = c.device.RESETS;
         let mut watchdog = Watchdog::new(c.device.WATCHDOG);
-        let _clocks = init_clocks_and_plls(
+        let clocks = init_clocks_and_plls(
             XOSC_CRYSTAL_FREQ,
             c.device.XOSC,
             c.device.CLOCKS,
@@ -60,6 +62,43 @@ mod app {
         let mut alarm = timer.alarm_0().unwrap();
         let _ = alarm.schedule(SCAN_TIME_US);
         alarm.enable_interrupt();
+
+        let _spi_sclk = pins.gpio6.into_mode::<hal::gpio::FunctionSpi>();
+        let _spi_mosi = pins.gpio7.into_mode::<hal::gpio::FunctionSpi>();
+        let _spi_miso = pins.gpio4.into_mode::<hal::gpio::FunctionSpi>();
+        let mut spi_cs = pins.gpio5.into_push_pull_output();
+        let spi = hal::Spi::<_, _, 8>::new(c.device.SPI0);
+
+        let mut enable = pins.gpio8.into_push_pull_output();
+
+        let _ = enable.set_high();
+
+        let _ = spi_cs.set_high();
+
+        // Exchange the uninitialised SPI driver for an initialised one
+        let mut spi = spi.init(
+            &mut resets,
+            clocks.peripheral_clock.freq(),
+            16.MHz(),
+            &embedded_hal::spi::MODE_0,
+        );
+
+        let _ = spi_cs.set_low();
+
+        if spi.write(&[0, 0x12]).is_ok() {
+            // SPI write was succesful
+        };
+
+        let _ = spi_cs.set_high();
+
+        let _ = spi_cs.set_low();
+        if spi.write(&[0b1000_0000, 0b0110_0000]).is_ok() {
+            // SPI write was succesful
+        };
+        let _ = spi_cs.set_high();
+
+        /* The ER-TFTMC043-3 provides a color bar display, which can be used as a display test and does not require display
+        memory. The function can be performed by Host to set REG[12h] bit5 to 1 */
 
         (Shared { timer, alarm, led }, Local {}, init::Monotonics())
     }
