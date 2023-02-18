@@ -1,5 +1,8 @@
 use embedded_hal::{
-    blocking::{delay::DelayMs, spi::Write as SPIWrite},
+    blocking::{
+        delay::DelayMs,
+        spi::{Transfer as SPITransfer, Write as SPIWrite},
+    },
     digital::v2::OutputPin,
 };
 
@@ -20,10 +23,10 @@ type Res<T, P, S> = Result<T, Error<P, S>>;
 
 impl<SPI, CS, PinErr, SPIErr> ER5517<SPI, CS>
 where
-    SPI: SPIWrite<u8, Error = SPIErr>,
+    SPI: SPIWrite<u8, Error = SPIErr> + SPITransfer<u8, Error = SPIErr>,
     CS: OutputPin<Error = PinErr>,
 {
-    fn with_select<T, F: Fn(&mut SPI) -> T>(&mut self, f: F) -> Res<T, PinErr, SPIErr> {
+    fn with_select<T, F: FnOnce(&mut SPI) -> T>(&mut self, f: F) -> Res<T, PinErr, SPIErr> {
         self.cs.set_low().map_err(Error::Pin)?;
         let r = f(&mut self.spi);
         self.cs.set_high().map_err(Error::Pin)?;
@@ -32,6 +35,11 @@ where
 
     fn write(&mut self, bytes: &[u8]) -> Res<(), PinErr, SPIErr> {
         let r = self.with_select(|spi| spi.write(bytes))?;
+        r.map_err(Error::SPI)
+    }
+
+    fn read<'w>(&mut self, bytes: &'w mut [u8]) -> Res<&'w [u8], PinErr, SPIErr> {
+        let r = self.with_select(|spi| spi.transfer(bytes))?;
         r.map_err(Error::SPI)
     }
 
@@ -47,8 +55,34 @@ where
         Self { spi, cs }
     }
 
-    pub fn color_bars(&mut self) -> Res<(), PinErr, SPIErr> {
+    pub fn read_status(&mut self) -> Res<u8, PinErr, SPIErr> {
+        let mut d: [u8; 2] = [0x40, 0x00];
+        let v = self.read(&mut d)?;
+        Ok(v[1])
+    }
+
+    pub fn read_data(&mut self) -> Res<u8, PinErr, SPIErr> {
+        let mut d: [u8; 2] = [0xc0, 0x00];
+        let v = self.read(&mut d)?;
+        Ok(v[1])
+    }
+
+    pub fn color_bars(&mut self, on: bool) -> Res<(), PinErr, SPIErr> {
         self.write_cmd(0x12)?;
-        self.write_data(0b0110_0000)
+        let mask = 0b0010_0000;
+
+        let mut s = self.read_data()?;
+        s = if on { s | mask } else { s & !mask };
+
+        self.write_data(s)
+    }
+
+    pub fn on(&mut self, on: bool) -> Res<(), PinErr, SPIErr> {
+        self.write_cmd(0x12)?;
+        let mask = 0b0100_0000u8;
+
+        let mut s = self.read_data()?;
+        s = if on { s | mask } else { s & !mask };
+        self.write_data(s)
     }
 }
