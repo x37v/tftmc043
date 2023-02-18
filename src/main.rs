@@ -87,10 +87,11 @@ mod app {
 
         let mut display = crate::er5517::ER5517::new(spi, spi_cs);
 
-        let _ = display.on(true);
-        let _ = display.color_bars(true);
-
-        let _ = display.color_bars(false);
+        let _ = display.init();
+        let _ = display.fg_color_65k(0xFF, 0, 0);
+        let _ = display.line_start(0, 0);
+        let _ = display.line_end(800 - 1, 480 - 1);
+        let _ = display.rect_fill();
 
         /* The ER-TFTMC043-3 provides a color bar display, which can be used as a display test and does not require display
         memory. The function can be performed by Host to set REG[12h] bit5 to 1 */
