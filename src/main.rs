@@ -1,6 +1,8 @@
 #![no_std]
 #![no_main]
 
+mod er5517;
+
 use panic_halt as _;
 
 #[rtic::app(device = rp_pico::hal::pac, peripherals = true)]
@@ -76,26 +78,16 @@ mod app {
         let _ = spi_cs.set_high();
 
         // Exchange the uninitialised SPI driver for an initialised one
-        let mut spi = spi.init(
+        let spi = spi.init(
             &mut resets,
             clocks.peripheral_clock.freq(),
             16.MHz(),
             &embedded_hal::spi::MODE_0,
         );
 
-        let _ = spi_cs.set_low();
+        let mut display = crate::er5517::ER5517::new(spi, spi_cs);
 
-        if spi.write(&[0, 0x12]).is_ok() {
-            // SPI write was succesful
-        };
-
-        let _ = spi_cs.set_high();
-
-        let _ = spi_cs.set_low();
-        if spi.write(&[0b1000_0000, 0b0110_0000]).is_ok() {
-            // SPI write was succesful
-        };
-        let _ = spi_cs.set_high();
+        let _ = display.color_bars();
 
         /* The ER-TFTMC043-3 provides a color bar display, which can be used as a display test and does not require display
         memory. The function can be performed by Host to set REG[12h] bit5 to 1 */
