@@ -50,6 +50,9 @@ mod app {
         .ok()
         .unwrap();
 
+        let mut delay =
+            cortex_m::delay::Delay::new(c.core.SYST, clocks.system_clock.freq().to_Hz());
+
         let sio = Sio::new(c.device.SIO);
         let pins = rp_pico::Pins::new(
             c.device.IO_BANK0,
@@ -81,16 +84,16 @@ mod app {
         let spi = spi.init(
             &mut resets,
             clocks.peripheral_clock.freq(),
-            16.MHz(),
+            8.MHz(),
             &embedded_hal::spi::MODE_0,
         );
 
         let mut display = crate::er5517::ER5517::new(spi, spi_cs);
 
-        let _ = display.init();
-        let _ = display.fg_color_65k(0xFF, 0, 0);
-        let _ = display.line_start(0, 0);
-        let _ = display.line_end(800 - 1, 480 - 1);
+        let _ = display.init(&mut delay);
+        let _ = display.fg_color_65k(0xff, 0x0, 0x0);
+        let _ = display.line_start(00, 00);
+        let _ = display.line_end(800, 480);
         let _ = display.rect_fill();
 
         /* The ER-TFTMC043-3 provides a color bar display, which can be used as a display test and does not require display

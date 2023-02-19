@@ -456,6 +456,7 @@ dependencies = [
 name = "rp2040"
 version = "0.1.0"
 dependencies = [
+ "cortex-m",
  "cortex-m-rtic",
  "embedded-graphics",
  "embedded-graphics-core",
