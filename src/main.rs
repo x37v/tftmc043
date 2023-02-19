@@ -76,8 +76,6 @@ mod app {
 
         let mut enable = pins.gpio8.into_push_pull_output();
 
-        let _ = enable.set_high();
-
         let _ = spi_cs.set_high();
 
         // Exchange the uninitialised SPI driver for an initialised one
@@ -90,10 +88,16 @@ mod app {
 
         let mut display = crate::er5517::ER5517::new(spi, spi_cs);
 
+        let _ = enable.set_low();
+        delay.delay_ms(500);
+        let _ = enable.set_high();
+        delay.delay_ms(500);
+
         let _ = display.init(&mut delay);
-        let _ = display.fg_color_65k(0xff, 0x0, 0x0);
-        let _ = display.line_start(00, 00);
-        let _ = display.line_end(800, 480);
+        let _ = display.bg_color_65k(0x0, 0x0, 0x0);
+        let _ = display.fg_color_65k(0x0, 0xff, 0x0);
+        let _ = display.line_start(10, 10);
+        let _ = display.line_end(80, 80);
         let _ = display.rect_fill();
 
         /* The ER-TFTMC043-3 provides a color bar display, which can be used as a display test and does not require display

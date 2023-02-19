@@ -1,6 +1,6 @@
 use embedded_hal::{
     blocking::{
-        delay::DelayUs,
+        delay::DelayMs,
         spi::{Transfer as SPITransfer, Write as SPIWrite},
     },
     digital::v2::OutputPin,
@@ -106,8 +106,10 @@ where
         self.data_write(v)
     }
 
-    pub fn init(&mut self, delay: &mut dyn DelayUs<u16>) -> Res<(), PinErr, SPIErr> {
+    pub fn init(&mut self, delay: &mut dyn DelayMs<u16>) -> Res<(), PinErr, SPIErr> {
         self.system_check_temp(delay)?;
+        delay.delay_ms(100);
+
         self.pll_init(delay)?;
         self.sdram_init(delay)?;
 
@@ -228,24 +230,24 @@ where
         Ok(())
     }
 
-    fn system_check_temp(&mut self, delay: &mut dyn DelayUs<u16>) -> Res<(), PinErr, SPIErr> {
+    fn system_check_temp(&mut self, delay: &mut dyn DelayMs<u16>) -> Res<(), PinErr, SPIErr> {
         loop {
             if self.status_read()? & 0x02 == 0 {
-                delay.delay_us(2000);
+                delay.delay_ms(2);
                 self.cmd_write(0x01)?;
-                delay.delay_us(2000);
+                delay.delay_ms(2);
                 if self.data_read()? & 0x80 == 0x80 {
                     return Ok(());
                 }
-                delay.delay_us(2000);
+                delay.delay_ms(2);
                 self.cmd_write(0x01)?;
-                delay.delay_us(2000);
+                delay.delay_ms(2);
                 self.data_write(0x80)?;
             }
         }
     }
 
-    fn pll_init(&mut self, delay: &mut dyn DelayUs<u16>) -> Res<(), PinErr, SPIErr> {
+    fn pll_init(&mut self, delay: &mut dyn DelayMs<u16>) -> Res<(), PinErr, SPIErr> {
         let lpllOD_sclk = 2u8;
         let lpllOD_cclk = 2u8;
         let lpllOD_mclk = 2u8;
@@ -265,9 +267,9 @@ where
         self.register_write(0x0a, lpllN_cclk)?;
 
         self.cmd_write(0x00)?;
-        delay.delay_us(1);
+        delay.delay_ms(1);
         self.data_write(0x80)?;
-        delay.delay_us(1000);
+        delay.delay_ms(1);
 
         //set pwm0 pwm1 100%
         self.register_write(0x85, 0x0a)?;
@@ -278,7 +280,7 @@ where
         self.register_write(0x86, 0x33)
     }
 
-    fn sdram_init(&mut self, delay: &mut dyn DelayUs<u16>) -> Res<(), PinErr, SPIErr> {
+    fn sdram_init(&mut self, delay: &mut dyn DelayMs<u16>) -> Res<(), PinErr, SPIErr> {
         self.register_write(0xe0, 0x29)?;
         self.register_write(0xe1, 0x03)?; //CAS:2=0x02�ACAS:3=0x03
 
@@ -287,7 +289,7 @@ where
         self.register_write(0xe3, (sdram_itv >> 8) as u8)?;
         self.register_write(0xe4, 0x01)?;
         self.sdram_check_ready()?;
-        delay.delay_us(1000);
+        delay.delay_ms(1);
         Ok(())
     }
 
