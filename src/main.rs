@@ -105,7 +105,7 @@ mod app {
         let _ = display.line_end(80, 80);
         let _ = display.rect_fill();
 
-        let _ = display.set_brightness(1);
+        let _ = display.set_brightness(100);
 
         /* The ER-TFTMC043-3 provides a color bar display, which can be used as a display test and does not require display
         memory. The function can be performed by Host to set REG[12h] bit5 to 1 */

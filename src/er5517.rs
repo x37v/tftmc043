@@ -109,6 +109,9 @@ where
     pub fn init(&mut self, delay: &mut dyn DelayMs<u16>) -> Res<(), PinErr, SPIErr> {
         self.system_check_temp(delay)?;
         delay.delay_ms(100);
+        while self.status_read()? & 0x02 != 0 {
+            //loop
+        }
 
         self.pll_init(delay)?;
         self.sdram_init(delay)?;
@@ -444,6 +447,10 @@ where
     }
 
     fn select_pwm1_clock_div_by_1(&mut self) -> Res<(), PinErr, SPIErr> {
+        /*
+        Select MUX input for PWM Timer 1.
+        00 = 1; 01 = 1/2; 10 = 1/4 ; 11 = 1/8;
+        */
         self.cmd_write(0x85)?;
         let v = self.data_read()? & !0b1100_0000;
         self.data_write(v)?;
