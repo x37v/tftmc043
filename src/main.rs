@@ -94,11 +94,18 @@ mod app {
         delay.delay_ms(500);
 
         let _ = display.init(&mut delay);
-        let _ = display.bg_color_65k(0x0, 0x0, 0x0);
+
+        let _ = display.fg_color_65k(0x0, 0x0, 0x0);
+        let _ = display.line_start(0, 0);
+        let _ = display.line_end(800, 480);
+        let _ = display.rect_fill();
+
         let _ = display.fg_color_65k(0x0, 0xff, 0x0);
         let _ = display.line_start(10, 10);
         let _ = display.line_end(80, 80);
         let _ = display.rect_fill();
+
+        let _ = display.set_brightness(1);
 
         /* The ER-TFTMC043-3 provides a color bar display, which can be used as a display test and does not require display
         memory. The function can be performed by Host to set REG[12h] bit5 to 1 */

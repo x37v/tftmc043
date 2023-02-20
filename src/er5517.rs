@@ -114,7 +114,7 @@ where
         self.sdram_init(delay)?;
 
         self.tft_16bit()?;
-        //HOST BUS 16bit??
+        self.host_16bit()?;
 
         self.rgb_16bit_16bpp()?;
         self.memwrite_left_right_top_down()?;
@@ -146,6 +146,7 @@ where
 
         self.on(true)?;
 
+        self.select_main_window_16bpp()?;
         self.main_image(0, 0, 0, LCD_SIZE.0 as _)?;
         self.canvas_image(0, LCD_SIZE.0 as _)?;
         self.active_window(0, 0, LCD_SIZE.0 as _, LCD_SIZE.1 as _)?;
@@ -306,6 +307,12 @@ where
         self.data_write(v)
     }
 
+    fn host_16bit(&mut self) -> Res<(), PinErr, SPIErr> {
+        self.cmd_write(0x01)?;
+        let v = self.data_read()? | 0b0001;
+        self.data_write(v)
+    }
+
     fn rgb_16bit_16bpp(&mut self) -> Res<(), PinErr, SPIErr> {
         self.cmd_write(0x02)?;
         let v = (self.data_read()? | 0b0100_0000) & !0b1000_0000;
@@ -428,6 +435,54 @@ where
         self.cmd_write(0x13)?;
         let v = self.data_read()? & !0b0010_0000;
         self.data_write(v)?;
+        Ok(())
+    }
+
+    fn set_pwm_prescaler_1_to_256(&mut self, v: u16) -> Res<(), PinErr, SPIErr> {
+        self.register_write(0x84, v.saturating_sub(1) as _)?;
+        Ok(())
+    }
+
+    fn select_pwm1_clock_div_by_1(&mut self) -> Res<(), PinErr, SPIErr> {
+        self.cmd_write(0x85)?;
+        let v = self.data_read()? & !0b1100_0000;
+        self.data_write(v)?;
+        Ok(())
+    }
+
+    fn select_pwm1(&mut self) -> Res<(), PinErr, SPIErr> {
+        self.cmd_write(0x85)?;
+        let v = (self.data_read()? | 0b1000) & !0b0100;
+        self.data_write(v)?;
+        Ok(())
+    }
+
+    fn start_pwm1(&mut self) -> Res<(), PinErr, SPIErr> {
+        self.cmd_write(0x86)?;
+        let v = self.data_read()? | 0b1_0000;
+        self.data_write(v)?;
+        Ok(())
+    }
+
+    fn set_timer1_count_buffer(&mut self, v: u16) -> Res<(), PinErr, SPIErr> {
+        self.register_write(0x8e, v as _)?;
+        self.register_write(0x8f, (v >> 8) as _)?;
+        Ok(())
+    }
+
+    fn set_timer1_compare_buffer(&mut self, v: u16) -> Res<(), PinErr, SPIErr> {
+        self.register_write(0x8c, v as _)?;
+        self.register_write(0x8d, (v >> 8) as _)?;
+        Ok(())
+    }
+
+    pub fn set_brightness(&mut self, v: u16) -> Res<(), PinErr, SPIErr> {
+        self.select_pwm1()?;
+        self.set_pwm_prescaler_1_to_256(20)?;
+        self.select_pwm1_clock_div_by_1()?;
+        self.set_timer1_count_buffer(100)?;
+        self.set_timer1_compare_buffer(v)?;
+        self.start_pwm1()?;
         Ok(())
     }
 }
