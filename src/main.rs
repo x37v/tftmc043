@@ -95,17 +95,20 @@ mod app {
 
         let _ = display.init(&mut delay);
 
-        let _ = display.fg_color_65k(0x0, 0x0, 0x0);
+        let mode = crate::er5517::ColorMode::TwentyFourBit;
+
+        let _ = display.fg_color(mode, 0x0, 0x0, 0x0);
         let _ = display.line_start(0, 0);
         let _ = display.line_end(800, 480);
         let _ = display.rect_fill();
 
-        let _ = display.fg_color_65k(0x0, 0xff, 0x0);
+        let _ = display.bg_color(mode, 0x0, 0x0, 0x0);
+        let _ = display.set_brightness(1);
+
+        let _ = display.fg_color(mode, 0xff, 0x00, 0x0);
         let _ = display.line_start(10, 10);
         let _ = display.line_end(80, 80);
         let _ = display.rect_fill();
-
-        let _ = display.set_brightness(100);
 
         /* The ER-TFTMC043-3 provides a color bar display, which can be used as a display test and does not require display
         memory. The function can be performed by Host to set REG[12h] bit5 to 1 */

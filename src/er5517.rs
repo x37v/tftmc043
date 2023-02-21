@@ -16,6 +16,30 @@ const LCD_VBPD: u16 = 20;
 const LCD_VFPD: u16 = 12;
 const LCD_VSPW: u16 = 3;
 
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub enum ColorMode {
+    EightBit,
+    SixteenBit,
+    TwentyFourBit,
+}
+
+fn color_mode(mode: ColorMode, mut r: u8, mut g: u8, mut b: u8) -> (u8, u8, u8) {
+    match mode {
+        ColorMode::EightBit => {
+            r = r.clamp(0, 0b0000_0111) << 5;
+            g = g.clamp(0, 0b0000_0111) << 5;
+            b = b.clamp(0, 0b0000_0011) << 6;
+        }
+        ColorMode::SixteenBit => {
+            r = r.clamp(0, 0b0001_1111) << 3;
+            g = g.clamp(0, 0b0011_1111) << 2;
+            b = b.clamp(0, 0b0001_1111) << 3;
+        }
+        _ => (),
+    };
+    (r, g, b)
+}
+
 pub enum Error<P = (), S = ()> {
     Pin(P),
     SPI(S),
@@ -98,11 +122,14 @@ where
         self.data_write(s)
     }
 
-    pub fn select_main_window_16bpp(&mut self) -> Res<(), PinErr, SPIErr> {
+    pub fn select_main_window_color_mode(&mut self, mode: ColorMode) -> Res<(), PinErr, SPIErr> {
         self.cmd_write(0x10)?;
-        let mut v = self.data_read()?;
-        v &= !0b1000;
-        v |= 0b0100;
+        let v = (self.data_read()? & !0b1100)
+            | match mode {
+                ColorMode::EightBit => 0b0000,
+                ColorMode::SixteenBit => 0b0100,
+                ColorMode::TwentyFourBit => 0b1000,
+            };
         self.data_write(v)
     }
 
@@ -142,31 +169,35 @@ where
         self.set_vert_start_pos(LCD_VFPD)?;
         self.set_vert_pulse_width(LCD_VSPW)?;
 
-        self.select_main_window_16bpp()?;
+        self.select_main_window_color_mode(ColorMode::TwentyFourBit)?;
         self.memory_xy_mode()?;
-        self.memory_16bpp_mode()?;
-        self.select_main_window_16bpp()?;
+        self.memory_color_mode(ColorMode::TwentyFourBit)?;
+        self.select_main_window_color_mode(ColorMode::TwentyFourBit)?;
 
         self.on(true)?;
 
-        self.select_main_window_16bpp()?;
+        self.select_main_window_color_mode(ColorMode::TwentyFourBit)?;
         self.main_image(0, 0, 0, LCD_SIZE.0 as _)?;
         self.canvas_image(0, LCD_SIZE.0 as _)?;
         self.active_window(0, 0, LCD_SIZE.0 as _, LCD_SIZE.1 as _)?;
         Ok(())
     }
 
-    pub fn fg_color_65k(&mut self, r: u8, g: u8, b: u8) -> Res<(), PinErr, SPIErr> {
-        self.register_write(0xD2, r.clamp(0, 0b1_1111) << 3)?;
-        self.register_write(0xD3, g.clamp(0, 0b11_1111) << 2)?;
-        self.register_write(0xD4, b.clamp(0, 0b11_1111) << 2)?;
+    pub fn fg_color(&mut self, mode: ColorMode, r: u8, g: u8, b: u8) -> Res<(), PinErr, SPIErr> {
+        let (r, g, b) = color_mode(mode, r, g, b);
+
+        self.register_write(0xD2, r)?;
+        self.register_write(0xD3, g)?;
+        self.register_write(0xD4, b)?;
+
         Ok(())
     }
 
-    pub fn bg_color_65k(&mut self, r: u8, g: u8, b: u8) -> Res<(), PinErr, SPIErr> {
-        self.register_write(0xD5, r.clamp(0, 0b1_1111) << 3)?;
-        self.register_write(0xD6, g.clamp(0, 0b11_1111) << 2)?;
-        self.register_write(0xD7, b.clamp(0, 0b11_1111 << 2))?;
+    pub fn bg_color(&mut self, mode: ColorMode, r: u8, g: u8, b: u8) -> Res<(), PinErr, SPIErr> {
+        let (r, g, b) = color_mode(mode, r, g, b);
+        self.register_write(0xD5, r)?;
+        self.register_write(0xD6, g)?;
+        self.register_write(0xD7, b)?;
         Ok(())
     }
 
@@ -406,9 +437,15 @@ where
         Ok(())
     }
 
-    fn memory_16bpp_mode(&mut self) -> Res<(), PinErr, SPIErr> {
+    pub fn memory_color_mode(&mut self, mode: ColorMode) -> Res<(), PinErr, SPIErr> {
         self.cmd_write(0x5e)?;
-        let v = (self.data_read()? | 0b1) & !0b0010;
+        let v = (self.data_read()? & !0b0011)
+            | match mode {
+                ColorMode::EightBit => 0b00,
+                ColorMode::SixteenBit => 0b01,
+                ColorMode::TwentyFourBit => 0b10,
+            };
+
         self.data_write(v)?;
         Ok(())
     }
