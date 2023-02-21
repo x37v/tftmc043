@@ -6,7 +6,7 @@ use embedded_hal::{
     digital::v2::OutputPin,
 };
 ///LCD size: width, height
-pub const LCD_SIZE: (usize, usize) = (800, 480);
+pub const LCD_SIZE: (usize, usize) = (480, 272);
 
 const LCD_HBPD: u16 = 140;
 const LCD_HFPD: u16 = 160;
@@ -289,7 +289,7 @@ where
         let lpllR_sclk = 5u8;
         let lpllR_cclk = 5u8;
         let lpllR_mclk = 5u8;
-        let lpllN_sclk = 50u8; // TFT PCLK out put frequency:65
+        let lpllN_sclk = 15u8; // TFT PCLK out put frequency:65
         let lpllN_cclk = 100u8; // Core CLK:100
         let lpllN_mclk = 100u8; // SRAM CLK:100
                                 //
