@@ -1,12 +1,11 @@
 #![no_std]
 #![no_main]
 
-mod er5517;
-
 use panic_halt as _;
 
 #[rtic::app(device = rp_pico::hal::pac, peripherals = true)]
 mod app {
+    use tftmc043::{ColorMode, ER5517};
 
     use embedded_hal::{digital::v2::OutputPin, prelude::*};
     use fugit::{MicrosDurationU32, RateExtU32};
@@ -86,7 +85,7 @@ mod app {
             &embedded_hal::spi::MODE_0,
         );
 
-        let mut display = crate::er5517::ER5517::new(spi, spi_cs);
+        let mut display = ER5517::new(spi, spi_cs);
 
         let _ = enable.set_low();
         delay.delay_ms(500);
@@ -95,7 +94,7 @@ mod app {
 
         let _ = display.init(&mut delay);
 
-        let mode = crate::er5517::ColorMode::TwentyFourBit;
+        let mode = ColorMode::TwentyFourBit;
 
         let _ = display.fg_color(mode, 0x0, 0x0, 0x0);
         let _ = display.line_start(0, 0);
