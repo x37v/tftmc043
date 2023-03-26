@@ -285,23 +285,23 @@ where
     }
 
     fn pll_init(&mut self, delay: &mut dyn DelayMs<u16>) -> Res<(), PinErr, SPIErr> {
-        let lpllOD_sclk = 2u8;
-        let lpllOD_cclk = 2u8;
-        let lpllOD_mclk = 2u8;
-        let lpllR_sclk = 5u8;
-        let lpllR_cclk = 5u8;
-        let lpllR_mclk = 5u8;
-        let lpllN_sclk = 15u8; // TFT PCLK out put frequency:65
-        let lpllN_cclk = 100u8; // Core CLK:100
-        let lpllN_mclk = 100u8; // SRAM CLK:100
-                                //
-        self.register_write(0x05, (lpllOD_sclk << 6) | (lpllR_sclk << 1))?;
-        self.register_write(0x07, (lpllOD_mclk << 6) | (lpllR_mclk << 1))?;
-        self.register_write(0x09, (lpllOD_cclk << 6) | (lpllR_cclk << 1))?;
+        let lpll_od_sclk = 2u8;
+        let lpll_od_cclk = 2u8;
+        let lpll_od_mclk = 2u8;
+        let lpll_r_sclk = 5u8;
+        let lpll_r_cclk = 5u8;
+        let lpll_r_mclk = 5u8;
+        let lpll_n_sclk = 15u8; // TFT PCLK out put frequency:65
+        let lpll_n_cclk = 100u8; // Core CLK:100
+        let lpll_n_mclk = 100u8; // SRAM CLK:100
+                                 //
+        self.register_write(0x05, (lpll_od_sclk << 6) | (lpll_r_sclk << 1))?;
+        self.register_write(0x07, (lpll_od_mclk << 6) | (lpll_r_mclk << 1))?;
+        self.register_write(0x09, (lpll_od_cclk << 6) | (lpll_r_cclk << 1))?;
 
-        self.register_write(0x06, lpllN_sclk)?;
-        self.register_write(0x08, lpllN_mclk)?;
-        self.register_write(0x0a, lpllN_cclk)?;
+        self.register_write(0x06, lpll_n_sclk)?;
+        self.register_write(0x08, lpll_n_mclk)?;
+        self.register_write(0x0a, lpll_n_cclk)?;
 
         self.cmd_write(0x00)?;
         delay.delay_ms(1);
