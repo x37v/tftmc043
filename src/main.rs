@@ -124,7 +124,7 @@ mod app {
         let _ = display.clear(Rgb888::new(0, 0, 0));
 
         let fill = PrimitiveStyle::with_fill(Rgb888::new(0, 255, 0));
-        let character_style = MonoTextStyle::new(&FONT_6X10, Rgb888::new(255, 255, 0));
+        let character_style = MonoTextStyle::new(&FONT_6X10, Rgb888::new(255, 255, 255));
 
         let _ = Rectangle::new(Point::new(52, 10), Size::new(16, 16))
             .into_styled(fill)

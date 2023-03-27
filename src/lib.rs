@@ -576,10 +576,10 @@ where
         for Pixel(coord, color) in pixels.into_iter() {
             if let Ok((x @ 0..=480, y @ 0..=272)) = coord.try_into() {
                 self.goto_pixel(x as u16, y as u16)?;
+                self.cmd_write(0x04)?;
 
                 for v in [color.b(), color.g(), color.r()] {
-                    self.cmd_write(0x04)?;
-                    self.cmd_write(v)?;
+                    self.data_write(v)?;
                     self.check_mem_wr_fifo_ready()?;
                 }
             }
