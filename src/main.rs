@@ -123,13 +123,49 @@ mod app {
 
         let _ = display.clear(Rgb888::new(0, 0, 0));
 
-        let fill = PrimitiveStyle::with_fill(Rgb888::new(0, 255, 0));
+        // Create styles used by the drawing operations.
+        let thin_stroke = PrimitiveStyle::with_stroke(Rgb888::new(255, 0, 0), 1);
+        let thick_stroke = PrimitiveStyle::with_stroke(Rgb888::new(0, 255, 0), 3);
+        let border_stroke = PrimitiveStyleBuilder::new()
+            .stroke_color(Rgb888::new(0, 255, 0))
+            .stroke_width(3)
+            .stroke_alignment(StrokeAlignment::Inside)
+            .build();
+        let fill = PrimitiveStyle::with_fill(Rgb888::new(0, 0, 255));
         let character_style = MonoTextStyle::new(&FONT_6X10, Rgb888::new(255, 255, 255));
 
-        let _ = Rectangle::new(Point::new(52, 10), Size::new(16, 16))
-            .into_styled(fill)
-            .draw(&mut display);
+        let yoffset = 10;
 
+        // Draw a 3px wide outline around the display.
+        display
+            .bounding_box()
+            .into_styled(border_stroke)
+            .draw(&mut display)
+            .ok();
+
+        // Draw a triangle.
+        Triangle::new(
+            Point::new(16, 16 + yoffset),
+            Point::new(16 + 16, 16 + yoffset),
+            Point::new(16 + 8, yoffset),
+        )
+        .into_styled(thin_stroke)
+        .draw(&mut display)
+        .ok();
+
+        // Draw a filled square
+        Rectangle::new(Point::new(52, yoffset), Size::new(16, 16))
+            .into_styled(fill)
+            .draw(&mut display)
+            .ok();
+
+        // Draw a circle with a 3px wide stroke.
+        Circle::new(Point::new(88, yoffset), 17)
+            .into_styled(thick_stroke)
+            .draw(&mut display)
+            .ok();
+
+        // Draw centered text.
         let text = "embedded-graphics";
         Text::with_alignment(
             text,
