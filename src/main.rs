@@ -5,8 +5,18 @@ use panic_halt as _;
 
 #[rtic::app(device = rp_pico::hal::pac, peripherals = true)]
 mod app {
-    use tftmc043::{ColorMode, ER5517};
+    use tftmc043::{ColorMode, TFTMC043};
 
+    use embedded_graphics::{
+        mock_display::MockDisplay,
+        mono_font::{ascii::FONT_6X10, MonoTextStyle},
+        pixelcolor::Rgb888,
+        prelude::*,
+        primitives::{
+            Circle, PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, StrokeAlignment, Triangle,
+        },
+        text::{Alignment, Text},
+    };
     use embedded_hal::{digital::v2::OutputPin, prelude::*};
     use fugit::{MicrosDurationU32, RateExtU32};
     use rp_pico::{
@@ -85,7 +95,7 @@ mod app {
             &embedded_hal::spi::MODE_0,
         );
 
-        let mut display = ER5517::new(spi, spi_cs);
+        let mut display = TFTMC043::new(spi, spi_cs);
 
         let _ = enable.set_low();
         delay.delay_ms(500);
@@ -96,6 +106,7 @@ mod app {
 
         let mode = ColorMode::TwentyFourBit;
 
+        /*
         let _ = display.fg_color(mode, 0x0, 0x0, 0x0);
         let _ = display.line_start(0, 0);
         let _ = display.line_end(800, 480);
@@ -108,6 +119,26 @@ mod app {
         let _ = display.line_start(10, 10);
         let _ = display.line_end(80, 80);
         let _ = display.rect_fill();
+        */
+
+        let _ = display.clear(Rgb888::new(0, 0, 0));
+
+        let fill = PrimitiveStyle::with_fill(Rgb888::new(0, 255, 0));
+        let character_style = MonoTextStyle::new(&FONT_6X10, Rgb888::new(255, 255, 0));
+
+        let _ = Rectangle::new(Point::new(52, 10), Size::new(16, 16))
+            .into_styled(fill)
+            .draw(&mut display);
+
+        let text = "embedded-graphics";
+        Text::with_alignment(
+            text,
+            display.bounding_box().center() + Point::new(0, 15),
+            character_style,
+            Alignment::Center,
+        )
+        .draw(&mut display)
+        .ok();
 
         /* The ER-TFTMC043-3 provides a color bar display, which can be used as a display test and does not require display
         memory. The function can be performed by Host to set REG[12h] bit5 to 1 */

@@ -7,8 +7,13 @@ use embedded_hal::{
     },
     digital::v2::OutputPin,
 };
-///LCD size: width, height
-pub const LCD_SIZE: (usize, usize) = (480, 272);
+
+use core::convert::TryInto;
+use embedded_graphics::{
+    pixelcolor::{Rgb565, Rgb888},
+    prelude::*,
+    primitives::Rectangle,
+};
 
 const LCD_HBPD: u16 = 140;
 const LCD_HFPD: u16 = 160;
@@ -47,14 +52,14 @@ pub enum Error<P = (), S = ()> {
     SPI(S),
 }
 
-pub struct ER5517<SPI, CS> {
+pub struct TFTMC043<SPI, CS> {
     spi: SPI,
     cs: CS, //chip select
 }
 
 type Res<T, P, S> = Result<T, Error<P, S>>;
 
-impl<SPI, CS, PinErr, SPIErr> ER5517<SPI, CS>
+impl<SPI, CS, PinErr, SPIErr> TFTMC043<SPI, CS>
 where
     SPI: SPIWrite<u8, Error = SPIErr> + SPITransfer<u8, Error = SPIErr>,
     CS: OutputPin<Error = PinErr>,
@@ -163,7 +168,9 @@ where
         self.vsync_low_active()?;
         self.de_high_active()?;
 
-        self.set_width_height(LCD_SIZE.0 as _, LCD_SIZE.1 as _)?;
+        let Size { width, height } = self.size();
+
+        self.set_width_height(width as _, height as _)?;
         self.set_horiz_non_display(LCD_HBPD)?;
         self.set_horiz_start_pos(LCD_HFPD)?;
         self.set_horiz_pulse_width(LCD_HSPW)?;
@@ -179,9 +186,9 @@ where
         self.on(true)?;
 
         self.select_main_window_color_mode(ColorMode::TwentyFourBit)?;
-        self.main_image(0, 0, 0, LCD_SIZE.0 as _)?;
-        self.canvas_image(0, LCD_SIZE.0 as _)?;
-        self.active_window(0, 0, LCD_SIZE.0 as _, LCD_SIZE.1 as _)?;
+        self.main_image(0, 0, 0, width as _)?;
+        self.canvas_image(0, width as _)?;
+        self.active_window(0, 0, width as _, height as _)?;
         Ok(())
     }
 
@@ -262,6 +269,13 @@ where
 
     pub fn busy_draw(&mut self) -> Res<(), PinErr, SPIErr> {
         while self.status_read()? & 0x08 != 0 {
+            //busy loop
+        }
+        Ok(())
+    }
+
+    pub fn check_mem_wr_fifo_ready(&mut self) -> Res<(), PinErr, SPIErr> {
+        while self.status_read()? & 0x80 != 0 {
             //busy loop
         }
         Ok(())
@@ -530,5 +544,60 @@ where
         self.set_timer1_compare_buffer(v)?;
         self.start_pwm1()?;
         Ok(())
+    }
+
+    pub fn goto_pixel(&mut self, x: u16, y: u16) -> Res<(), PinErr, SPIErr> {
+        self.register_write(0x5F, x as u8)?;
+        self.register_write(0x60, (x >> 8) as u8)?;
+        self.register_write(0x61, y as u8)?;
+        self.register_write(0x62, (y >> 8) as u8)?;
+        Ok(())
+    }
+}
+
+impl<SPI, CS> OriginDimensions for TFTMC043<SPI, CS> {
+    fn size(&self) -> Size {
+        Size::new(480, 272)
+    }
+}
+
+impl<SPI, CS, PinErr, SPIErr> DrawTarget for TFTMC043<SPI, CS>
+where
+    SPI: SPIWrite<u8, Error = SPIErr> + SPITransfer<u8, Error = SPIErr>,
+    CS: OutputPin<Error = PinErr>,
+{
+    type Color = Rgb888;
+    type Error = Error<PinErr, SPIErr>;
+
+    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = Pixel<Self::Color>>,
+    {
+        for Pixel(coord, color) in pixels.into_iter() {
+            if let Ok((x @ 0..=480, y @ 0..=272)) = coord.try_into() {
+                self.goto_pixel(x as u16, y as u16)?;
+
+                for v in [color.b(), color.g(), color.r()] {
+                    self.cmd_write(0x04)?;
+                    self.cmd_write(v)?;
+                    self.check_mem_wr_fifo_ready()?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn fill_solid(&mut self, area: &Rectangle, color: Self::Color) -> Result<(), Self::Error> {
+        let Point { x, y } = area.top_left;
+        let Size { width, height } = area.size;
+
+        let (x1, y1) = (x.max(0) as u16, y.max(0) as u16);
+        let (x2, y2) = ((x1 + width as u16).min(480), (y1 + height as u16).min(272));
+
+        self.fg_color(ColorMode::TwentyFourBit, color.r(), color.g(), color.b())?;
+        self.line_start(x1, y1)?;
+        self.line_end(x2, y2)?;
+        self.rect_fill()
     }
 }
