@@ -23,6 +23,9 @@ const LCD_VBPD: u16 = 20;
 const LCD_VFPD: u16 = 12;
 const LCD_VSPW: u16 = 3;
 
+const HEIGHT: u32 = 272;
+const WIDTH: u32 = 480;
+
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum ColorMode {
     EightBit,
@@ -30,6 +33,7 @@ pub enum ColorMode {
     TwentyFourBit,
 }
 
+/*
 fn color_mode(mode: ColorMode, mut r: u8, mut g: u8, mut b: u8) -> (u8, u8, u8) {
     match mode {
         ColorMode::EightBit => {
@@ -46,6 +50,7 @@ fn color_mode(mode: ColorMode, mut r: u8, mut g: u8, mut b: u8) -> (u8, u8, u8) 
     };
     (r, g, b)
 }
+*/
 
 pub enum Error<P = (), S = ()> {
     Pin(P),
@@ -53,8 +58,19 @@ pub enum Error<P = (), S = ()> {
 }
 
 pub struct TFTMC043<SPI, CS> {
+    color_mode: ColorMode,
     spi: SPI,
     cs: CS, //chip select
+}
+
+/// NewType struct to implement DrawTarget
+pub struct TFTMC043Draw16Bit<SPI, CS> {
+    inner: TFTMC043<SPI, CS>,
+}
+
+/// NewType struct to implement DrawTarget
+pub struct TFTMC043Draw24Bit<SPI, CS> {
+    inner: TFTMC043<SPI, CS>,
 }
 
 type Res<T, P, S> = Result<T, Error<P, S>>;
@@ -89,8 +105,12 @@ where
         self.write(&[0x80, data])
     }
 
-    pub fn new(spi: SPI, cs: CS) -> Self {
-        Self { spi, cs }
+    pub fn new(spi: SPI, cs: CS, color_mode: ColorMode) -> Self {
+        Self {
+            spi,
+            cs,
+            color_mode,
+        }
     }
 
     pub fn status_read(&mut self) -> Res<u8, PinErr, SPIErr> {
@@ -129,7 +149,7 @@ where
         self.data_write(s)
     }
 
-    pub fn select_main_window_color_mode(&mut self, mode: ColorMode) -> Res<(), PinErr, SPIErr> {
+    fn select_main_window_color_mode(&mut self, mode: ColorMode) -> Res<(), PinErr, SPIErr> {
         self.cmd_write(0x10)?;
         let v = (self.data_read()? & !0b1100)
             | match mode {
@@ -168,9 +188,7 @@ where
         self.vsync_low_active()?;
         self.de_high_active()?;
 
-        let Size { width, height } = self.size();
-
-        self.set_width_height(width as _, height as _)?;
+        self.set_width_height(WIDTH as _, HEIGHT as _)?;
         self.set_horiz_non_display(LCD_HBPD)?;
         self.set_horiz_start_pos(LCD_HFPD)?;
         self.set_horiz_pulse_width(LCD_HSPW)?;
@@ -178,23 +196,35 @@ where
         self.set_vert_start_pos(LCD_VFPD)?;
         self.set_vert_pulse_width(LCD_VSPW)?;
 
-        self.select_main_window_color_mode(ColorMode::TwentyFourBit)?;
+        self.select_main_window_color_mode(self.color_mode)?;
         self.memory_xy_mode()?;
-        self.memory_color_mode(ColorMode::TwentyFourBit)?;
-        self.select_main_window_color_mode(ColorMode::TwentyFourBit)?;
+        self.memory_color_mode(self.color_mode)?;
+        self.select_main_window_color_mode(self.color_mode)?;
 
         self.on(true)?;
 
-        self.select_main_window_color_mode(ColorMode::TwentyFourBit)?;
-        self.main_image(0, 0, 0, width as _)?;
-        self.canvas_image(0, width as _)?;
-        self.active_window(0, 0, width as _, height as _)?;
+        self.select_main_window_color_mode(self.color_mode)?;
+        self.main_image(0, 0, 0, WIDTH as _)?;
+        self.canvas_image(0, WIDTH as _)?;
+        self.active_window(0, 0, WIDTH as _, HEIGHT as _)?;
         Ok(())
     }
 
-    pub fn fg_color(&mut self, mode: ColorMode, r: u8, g: u8, b: u8) -> Res<(), PinErr, SPIErr> {
-        let (r, g, b) = color_mode(mode, r, g, b);
+    pub fn set_color_mode(&mut self, mode: ColorMode) -> Res<(), PinErr, SPIErr> {
+        if mode != self.color_mode {
+            self.memory_color_mode(mode)?;
+            self.select_main_window_color_mode(mode)?;
+            self.color_mode = mode;
+        }
+        Ok(())
+    }
 
+    pub fn color_mode(&self) -> ColorMode {
+        self.color_mode
+    }
+
+    //XXX expects 8-bit colors
+    pub fn fg_color(&mut self, r: u8, g: u8, b: u8) -> Res<(), PinErr, SPIErr> {
         self.register_write(0xD2, r)?;
         self.register_write(0xD3, g)?;
         self.register_write(0xD4, b)?;
@@ -202,8 +232,7 @@ where
         Ok(())
     }
 
-    pub fn bg_color(&mut self, mode: ColorMode, r: u8, g: u8, b: u8) -> Res<(), PinErr, SPIErr> {
-        let (r, g, b) = color_mode(mode, r, g, b);
+    pub fn bg_color(&mut self, r: u8, g: u8, b: u8) -> Res<(), PinErr, SPIErr> {
         self.register_write(0xD5, r)?;
         self.register_write(0xD6, g)?;
         self.register_write(0xD7, b)?;
@@ -453,7 +482,7 @@ where
         Ok(())
     }
 
-    pub fn memory_color_mode(&mut self, mode: ColorMode) -> Res<(), PinErr, SPIErr> {
+    fn memory_color_mode(&mut self, mode: ColorMode) -> Res<(), PinErr, SPIErr> {
         self.cmd_write(0x5e)?;
         let v = (self.data_read()? & !0b0011)
             | match mode {
@@ -555,13 +584,97 @@ where
     }
 }
 
-impl<SPI, CS> OriginDimensions for TFTMC043<SPI, CS> {
-    fn size(&self) -> Size {
-        Size::new(480, 272)
+impl<SPI, CS, PinErr, SPIErr> TFTMC043Draw16Bit<SPI, CS>
+where
+    SPI: SPIWrite<u8, Error = SPIErr> + SPITransfer<u8, Error = SPIErr>,
+    CS: OutputPin<Error = PinErr>,
+{
+    pub fn new(mut inner: TFTMC043<SPI, CS>) -> Result<Self, Error<PinErr, SPIErr>> {
+        inner.set_color_mode(ColorMode::SixteenBit)?;
+        Ok(Self { inner })
+    }
+
+    pub fn release(self) -> TFTMC043<SPI, CS> {
+        self.inner
     }
 }
 
-impl<SPI, CS, PinErr, SPIErr> DrawTarget for TFTMC043<SPI, CS>
+impl<SPI, CS, PinErr, SPIErr> TFTMC043Draw24Bit<SPI, CS>
+where
+    SPI: SPIWrite<u8, Error = SPIErr> + SPITransfer<u8, Error = SPIErr>,
+    CS: OutputPin<Error = PinErr>,
+{
+    pub fn new(mut inner: TFTMC043<SPI, CS>) -> Result<Self, Error<PinErr, SPIErr>> {
+        inner.set_color_mode(ColorMode::TwentyFourBit)?;
+        Ok(Self { inner })
+    }
+
+    pub fn release(self) -> TFTMC043<SPI, CS> {
+        self.inner
+    }
+}
+
+impl<SPI, CS> OriginDimensions for TFTMC043Draw16Bit<SPI, CS> {
+    fn size(&self) -> Size {
+        Size::new(WIDTH, HEIGHT)
+    }
+}
+
+impl<SPI, CS> OriginDimensions for TFTMC043Draw24Bit<SPI, CS> {
+    fn size(&self) -> Size {
+        Size::new(WIDTH, HEIGHT)
+    }
+}
+
+impl<SPI, CS, PinErr, SPIErr> DrawTarget for TFTMC043Draw16Bit<SPI, CS>
+where
+    SPI: SPIWrite<u8, Error = SPIErr> + SPITransfer<u8, Error = SPIErr>,
+    CS: OutputPin<Error = PinErr>,
+{
+    type Color = Rgb565;
+    type Error = Error<PinErr, SPIErr>;
+
+    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = Pixel<Self::Color>>,
+    {
+        for Pixel(coord, color) in pixels.into_iter() {
+            if let Ok((x @ 0..=WIDTH, y @ 0..=HEIGHT)) = coord.try_into() {
+                self.inner.goto_pixel(x as u16, y as u16)?;
+                self.inner.cmd_write(0x04)?;
+
+                let r = color.r();
+                let g = color.g();
+                let b = color.b();
+
+                for v in [b | (g << 5), (g >> 3) | (r << 3)] {
+                    self.inner.data_write(v)?;
+                    self.inner.check_mem_wr_fifo_ready()?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn fill_solid(&mut self, area: &Rectangle, color: Self::Color) -> Result<(), Self::Error> {
+        let drawable_area = area.intersection(&self.bounding_box());
+
+        if drawable_area.size != Size::zero() {
+            let Point { x: x1, y: y1 } = drawable_area.top_left;
+            let Point { x: x2, y: y2 } = drawable_area.bottom_right().unwrap();
+
+            self.inner
+                .fg_color(color.r() << 3, color.g() << 2, color.b() << 3)?;
+            self.inner.line_start(x1 as _, y1 as _)?;
+            self.inner.line_end(x2 as _, y2 as _)?;
+            self.inner.rect_fill()?;
+        }
+        Ok(())
+    }
+}
+
+impl<SPI, CS, PinErr, SPIErr> DrawTarget for TFTMC043Draw24Bit<SPI, CS>
 where
     SPI: SPIWrite<u8, Error = SPIErr> + SPITransfer<u8, Error = SPIErr>,
     CS: OutputPin<Error = PinErr>,
@@ -574,13 +687,13 @@ where
         I: IntoIterator<Item = Pixel<Self::Color>>,
     {
         for Pixel(coord, color) in pixels.into_iter() {
-            if let Ok((x @ 0..=480, y @ 0..=272)) = coord.try_into() {
-                self.goto_pixel(x as u16, y as u16)?;
-                self.cmd_write(0x04)?;
+            if let Ok((x @ 0..=WIDTH, y @ 0..=HEIGHT)) = coord.try_into() {
+                self.inner.goto_pixel(x as u16, y as u16)?;
+                self.inner.cmd_write(0x04)?;
 
                 for v in [color.b(), color.g(), color.r()] {
-                    self.data_write(v)?;
-                    self.check_mem_wr_fifo_ready()?;
+                    self.inner.data_write(v)?;
+                    self.inner.check_mem_wr_fifo_ready()?;
                 }
             }
         }
@@ -589,15 +702,17 @@ where
     }
 
     fn fill_solid(&mut self, area: &Rectangle, color: Self::Color) -> Result<(), Self::Error> {
-        let Point { x, y } = area.top_left;
-        let Size { width, height } = area.size;
+        let drawable_area = area.intersection(&self.bounding_box());
 
-        let (x1, y1) = (x.max(0) as u16, y.max(0) as u16);
-        let (x2, y2) = ((x1 + width as u16).min(480), (y1 + height as u16).min(272));
+        if drawable_area.size != Size::zero() {
+            let Point { x: x1, y: y1 } = drawable_area.top_left;
+            let Point { x: x2, y: y2 } = drawable_area.bottom_right().unwrap();
 
-        self.fg_color(ColorMode::TwentyFourBit, color.r(), color.g(), color.b())?;
-        self.line_start(x1, y1)?;
-        self.line_end(x2, y2)?;
-        self.rect_fill()
+            self.inner.fg_color(color.r(), color.g(), color.b())?;
+            self.inner.line_start(x1 as _, y1 as _)?;
+            self.inner.line_end(x2 as _, y2 as _)?;
+            self.inner.rect_fill()?;
+        }
+        Ok(())
     }
 }

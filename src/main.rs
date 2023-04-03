@@ -5,12 +5,12 @@ use panic_halt as _;
 
 #[rtic::app(device = rp_pico::hal::pac, peripherals = true)]
 mod app {
-    use tftmc043::{ColorMode, TFTMC043};
+    use tftmc043::{ColorMode, TFTMC043Draw16Bit, TFTMC043Draw24Bit, TFTMC043};
 
     use embedded_graphics::{
         mock_display::MockDisplay,
         mono_font::{ascii::FONT_6X10, MonoTextStyle},
-        pixelcolor::Rgb888,
+        pixelcolor::{Rgb565, Rgb888},
         prelude::*,
         primitives::{
             Circle, PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, StrokeAlignment, Triangle,
@@ -95,7 +95,7 @@ mod app {
             &embedded_hal::spi::MODE_0,
         );
 
-        let mut display = TFTMC043::new(spi, spi_cs);
+        let mut display = TFTMC043::new(spi, spi_cs, ColorMode::TwentyFourBit);
 
         let _ = enable.set_low();
         delay.delay_ms(500);
@@ -103,8 +103,6 @@ mod app {
         delay.delay_ms(500);
 
         let _ = display.init(&mut delay);
-
-        let mode = ColorMode::TwentyFourBit;
 
         /*
         let _ = display.fg_color(mode, 0x0, 0x0, 0x0);
@@ -119,65 +117,68 @@ mod app {
         let _ = display.line_start(10, 10);
         let _ = display.line_end(80, 80);
         let _ = display.rect_fill();
+
+        if let Ok(mut display) = TFTMC043Draw24Bit::new(display) {
+            let _ = display.clear(Rgb888::RED);
+        }
         */
 
-        let _ = display.clear(Rgb888::new(0, 0, 0));
+        if let Ok(mut display) = TFTMC043Draw16Bit::new(display) {
+            let _ = display.clear(Rgb565::BLACK);
 
-        // Create styles used by the drawing operations.
-        let thin_stroke = PrimitiveStyle::with_stroke(Rgb888::new(255, 0, 0), 1);
-        let thick_stroke = PrimitiveStyle::with_stroke(Rgb888::new(0, 255, 0), 3);
-        let border_stroke = PrimitiveStyleBuilder::new()
-            .stroke_color(Rgb888::new(0, 255, 0))
-            .stroke_width(3)
-            .stroke_alignment(StrokeAlignment::Inside)
-            .build();
-        let fill = PrimitiveStyle::with_fill(Rgb888::new(0, 0, 255));
-        let character_style = MonoTextStyle::new(&FONT_6X10, Rgb888::new(255, 255, 255));
+            // Create styles used by the drawing operations.
+            let thin_stroke = PrimitiveStyle::with_stroke(Rgb565::RED, 1);
+            let thick_stroke = PrimitiveStyle::with_stroke(Rgb565::GREEN, 3);
+            let border_stroke = PrimitiveStyleBuilder::new()
+                .stroke_color(Rgb565::GREEN)
+                .stroke_width(3)
+                .stroke_alignment(StrokeAlignment::Inside)
+                .build();
+            let fill = PrimitiveStyle::with_fill(Rgb565::BLUE);
+            let character_style = MonoTextStyle::new(&FONT_6X10, Rgb565::WHITE);
 
-        let yoffset = 10;
+            let yoffset = 10;
 
-        // Draw a 3px wide outline around the display.
-        display
-            .bounding_box()
-            .into_styled(border_stroke)
+            // Draw a 3px wide outline around the display.
+            display
+                .bounding_box()
+                .into_styled(border_stroke)
+                .draw(&mut display)
+                .ok();
+
+            // Draw a triangle.
+            Triangle::new(
+                Point::new(16, 16 + yoffset),
+                Point::new(16 + 16, 16 + yoffset),
+                Point::new(16 + 8, yoffset),
+            )
+            .into_styled(thin_stroke)
             .draw(&mut display)
             .ok();
 
-        // Draw a triangle.
-        Triangle::new(
-            Point::new(16, 16 + yoffset),
-            Point::new(16 + 16, 16 + yoffset),
-            Point::new(16 + 8, yoffset),
-        )
-        .into_styled(thin_stroke)
-        .draw(&mut display)
-        .ok();
+            // Draw a filled square
+            Rectangle::new(Point::new(52, yoffset), Size::new(16, 16))
+                .into_styled(fill)
+                .draw(&mut display)
+                .ok();
 
-        // Draw a filled square
-        Rectangle::new(Point::new(52, yoffset), Size::new(16, 16))
-            .into_styled(fill)
+            // Draw a circle with a 3px wide stroke.
+            Circle::new(Point::new(88, yoffset), 17)
+                .into_styled(thick_stroke)
+                .draw(&mut display)
+                .ok();
+
+            // Draw centered text.
+            let text = "embedded-graphics";
+            Text::with_alignment(
+                text,
+                display.bounding_box().center() + Point::new(0, 15),
+                character_style,
+                Alignment::Center,
+            )
             .draw(&mut display)
             .ok();
-
-        // Draw a circle with a 3px wide stroke.
-        Circle::new(Point::new(88, yoffset), 17)
-            .into_styled(thick_stroke)
-            .draw(&mut display)
-            .ok();
-
-        // Draw centered text.
-        let text = "embedded-graphics";
-        Text::with_alignment(
-            text,
-            display.bounding_box().center() + Point::new(0, 15),
-            character_style,
-            Alignment::Center,
-        )
-        .draw(&mut display)
-        .ok();
-
-        /* The ER-TFTMC043-3 provides a color bar display, which can be used as a display test and does not require display
-        memory. The function can be performed by Host to set REG[12h] bit5 to 1 */
+        }
 
         (Shared { timer, alarm, led }, Local {}, init::Monotonics())
     }
