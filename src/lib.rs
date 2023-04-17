@@ -9,7 +9,7 @@ use embedded_hal::{
 };
 
 use core::convert::TryInto;
-use embedded_graphics::{
+use embedded_graphics_core::{
     pixelcolor::{Rgb565, Rgb888},
     prelude::*,
     primitives::Rectangle,
